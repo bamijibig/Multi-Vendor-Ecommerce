@@ -11,9 +11,14 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
+
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -37,6 +42,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Third-party API layer
+    'rest_framework',
+    'django_filters',
+    'corsheaders',
+    'drf_spectacular',
+    # Project apps (models/migrations unchanged)
     'home',
     'accounts',
     'products.apps.ProductsConfig',
@@ -44,16 +55,23 @@ INSTALLED_APPS = [
     'Vendors',
     'ckeditor',
     'payments',
+    # Decoupled REST API
+    'api',
+    'ai_assistant',
+    'finance',
+    'analytics',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'api.middleware.ApiExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'ecommerce.urls'
@@ -142,3 +160,67 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 APPEND_SLASH=False
+
+
+# ---------------------------------------------------------------------------
+# Decoupled API (Django REST Framework)
+# ---------------------------------------------------------------------------
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'api.pagination.StandardResultsSetPagination',
+    'PAGE_SIZE': 12,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'EXCEPTION_HANDLER': 'api.exceptions.api_exception_handler',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Multivendor Ecommerce API',
+    'DESCRIPTION': 'DRF backend for the React storefront and dashboards.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+# CORS: the Vite dev server by default; override with env in other environments.
+CORS_ALLOWED_ORIGINS = os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173',
+).split(',')
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# Where the React app runs. Legacy Django admin URLs redirect here.
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+
+# ---------------------------------------------------------------------------
+# Optional AI assistant provider. Missing values select the deterministic local
+# fallback; the listing workflow never fails just because no key is configured.
+# ---------------------------------------------------------------------------
+AI_PROVIDER = os.getenv('AI_PROVIDER', '')
+AI_API_KEY = os.getenv('AI_API_KEY', '')
+AI_MODEL = os.getenv('AI_MODEL', '')
+AI_BASE_URL = os.getenv('AI_BASE_URL', '')
+AI_IMAGE_MODEL = os.getenv('AI_IMAGE_MODEL', '')
+AI_TIMEOUT_SECONDS = os.getenv('AI_TIMEOUT_SECONDS', '15')
+AI_BULK_ASYNC = os.getenv('AI_BULK_ASYNC', '0').lower() in {'1', 'true', 'yes', 'on'}

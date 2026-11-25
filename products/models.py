@@ -26,6 +26,10 @@ class Categories(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
     industry = models.ForeignKey(Industry, on_delete=models.DO_NOTHING)
+    banner = models.ImageField(
+        upload_to="media/category/banner/", blank=True, null=True
+    )
+    tagline = models.CharField(max_length=160, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
@@ -55,6 +59,17 @@ class SubCategories(models.Model):
 class Product(models.Model):
     from Vendors.models import VendorStore
 
+    MODERATION_APPROVED = "APPROVED"
+    MODERATION_PENDING = "PENDING"
+    MODERATION_FLAGGED = "FLAGGED"
+    MODERATION_UNPUBLISHED = "UNPUBLISHED"
+    MODERATION_CHOICES = [
+        (MODERATION_APPROVED, "Approved"),
+        (MODERATION_PENDING, "Pending review"),
+        (MODERATION_FLAGGED, "Flagged"),
+        (MODERATION_UNPUBLISHED, "Unpublished"),
+    ]
+
     title = models.CharField(max_length=300)
     slug = models.SlugField(unique=True, blank=True, max_length=250)
     regular_price = models.PositiveIntegerField()
@@ -68,6 +83,11 @@ class Product(models.Model):
     vendor_stores = models.ForeignKey(VendorStore, on_delete=models.CASCADE, null=True, blank=True)
     details_description = RichTextField(max_length=5000, 
         help_text="Details product description display in the bottom of the product Page. It's help buyer to make deceion on your product")
+    moderation_status = models.CharField(
+        max_length=20, choices=MODERATION_CHOICES, default=MODERATION_APPROVED, db_index=True
+    )
+    moderation_note = models.TextField(blank=True)
+    moderated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -320,12 +340,44 @@ class CompletedOder(models.Model):
 
 
 class CompletedOderItems(models.Model):
+    RETURN_NONE = "NONE"
+    RETURN_REQUESTED = "REQUESTED"
+    RETURN_APPROVED = "APPROVED"
+    RETURN_REJECTED = "REJECTED"
+    RETURN_STATUS_CHOICES = [
+        (RETURN_NONE, "No return"),
+        (RETURN_REQUESTED, "Return requested"),
+        (RETURN_APPROVED, "Return approved"),
+        (RETURN_REJECTED, "Return rejected"),
+    ]
+
+    REFUND_NONE = "NONE"
+    REFUND_PENDING = "PENDING"
+    REFUND_REFUNDED = "REFUNDED"
+    REFUND_DECLINED = "DECLINED"
+    REFUND_STATUS_CHOICES = [
+        (REFUND_NONE, "No refund"),
+        (REFUND_PENDING, "Refund pending"),
+        (REFUND_REFUNDED, "Refunded"),
+        (REFUND_DECLINED, "Refund declined"),
+    ]
+
     completed_oder = models.ForeignKey(
         CompletedOder, on_delete=models.CASCADE, related_name="delivered_items"
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="delivered_product")
     quantity = models.PositiveIntegerField()
     total_price = models.FloatField()
+    return_status = models.CharField(
+        max_length=20, choices=RETURN_STATUS_CHOICES, default=RETURN_NONE, db_index=True
+    )
+    refund_status = models.CharField(
+        max_length=20, choices=REFUND_STATUS_CHOICES, default=REFUND_NONE
+    )
+    return_reason = models.TextField(blank=True)
+    return_requested_at = models.DateTimeField(null=True, blank=True)
+    return_resolved_at = models.DateTimeField(null=True, blank=True)
+    return_resolution_note = models.TextField(blank=True)
 
     def __str__(self):
         return self.product.title[:20] + str(self.product.id)
